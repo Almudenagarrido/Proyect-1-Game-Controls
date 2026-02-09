@@ -27,6 +27,7 @@ def debugging(isdebugging,action,direction):
 
 
 def keypress(is_debugging):
+    
     ''' 
     Controls a grid based game through the use of the keyboard. 
     The keymapping is as follows:
