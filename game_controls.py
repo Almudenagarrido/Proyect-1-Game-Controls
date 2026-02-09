@@ -236,9 +236,6 @@ def color_tracker(is_debugging):
     # Close all windows and close the video stream.
     cv2.destroyAllWindows()
     vs.stop()
-        
-
-
 
 def finger_tracking(is_debugging):
     ''' 
@@ -293,9 +290,29 @@ def finger_tracking(is_debugging):
 
     # function to count number of fingers up
     def count_fingers(hand_landmarks, handedness):
-        """Counts fingers based on tip vs joint position."""
-        #TODO: complete this code to count how many fingers are being held up
-        pass
+        count = 0
+
+        # Thumb (horizontal)
+        if hand_landmarks[4].x > hand_landmarks[3].x:
+            count += 1
+
+        # Index finger
+        if hand_landmarks[8].y < hand_landmarks[6].y:
+            count += 1
+
+        # Middle finger
+        if hand_landmarks[12].y < hand_landmarks[10].y:
+            count += 1
+
+        # Ring finger
+        if hand_landmarks[16].y < hand_landmarks[14].y:
+            count += 1
+
+        # Pinky
+        if hand_landmarks[20].y < hand_landmarks[18].y:
+            count += 1
+
+        return count
 
     global last_dir
     is_running = True
