@@ -90,8 +90,43 @@ def trackpad_mouse(is_debugging):
     def on_move(x, y):
         global last_position
         global last_dir
-        # TODO: fill in your code here and delete the pass
-        pass
+
+        THRESHOLD = 30
+
+        if last_position == (None, None):
+            last_position = (x, y)
+            return
+
+        last_x, last_y = last_position
+        dx = x - last_x
+        dy = y - last_y
+
+        if abs(dx) < THRESHOLD and abs(dy) < THRESHOLD:
+            return
+
+        if abs(dx) > abs(dy):
+            if dx > 0 and last_dir != 'right':
+                pyautogui.press('right')
+                last_dir = 'right'
+                debugging(is_debugging, 'mouse', 'right')
+
+            elif dx < 0 and last_dir != 'left':
+                pyautogui.press('left')
+                last_dir = 'left'
+                debugging(is_debugging, 'mouse', 'left')
+
+        else:
+            if dy > 0 and last_dir != 'down':
+                pyautogui.press('down')
+                last_dir = 'down'
+                debugging(is_debugging, 'mouse', 'down')
+
+            elif dy < 0 and last_dir != 'up':
+                pyautogui.press('up')
+                last_dir = 'up'
+                debugging(is_debugging, 'mouse', 'up')
+
+        last_position = (x, y)
     
     # listens for a mouse movement
     with mouse.Listener(on_move=on_move) as listener:
