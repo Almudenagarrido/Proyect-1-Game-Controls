@@ -378,15 +378,51 @@ def finger_tracking(is_debugging):
 
 def unique_control(is_debugging):
     ''' 
-    Fill in the description.
+    Controls a grid based game using mouse scroll input.
+
+    Scroll mapping:
+    - Scroll up    -> move up
+    - Scroll down  -> move down
+    - Scroll left  -> move left
+    - Scroll right -> move right
+
+    This control uses the mouse scroll wheel instead of mouse movement
+    or keyboard input, making it a unique interaction modality.
 
     Parameters:
-    is_debugging (bool): indicates if the debugging mode is on
+    is_debugging (bool): indicates if debugging mode is on
 
     Returns: None
     '''
-    #TODO: fill in your code here and delete the pass
-    pass
+
+    from pynput import mouse
+    global last_dir
+
+    def on_scroll(x, y, dx, dy):
+        global last_dir
+
+        if dy > 0 and last_dir != 'up':
+            pyautogui.press('up')
+            last_dir = 'up'
+            debugging(is_debugging, 'scroll', 'up')
+
+        elif dy < 0 and last_dir != 'down':
+            pyautogui.press('down')
+            last_dir = 'down'
+            debugging(is_debugging, 'scroll', 'down')
+
+        elif dx > 0 and last_dir != 'right':
+            pyautogui.press('right')
+            last_dir = 'right'
+            debugging(is_debugging, 'scroll', 'right')
+
+        elif dx < 0 and last_dir != 'left':
+            pyautogui.press('left')
+            last_dir = 'left'
+            debugging(is_debugging, 'scroll', 'left')
+
+    with mouse.Listener(on_scroll=on_scroll) as listener:
+        listener.join()
 
 def main():
     is_debugging = False
