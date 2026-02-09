@@ -25,7 +25,6 @@ def debugging(isdebugging,action,direction):
     if isdebugging:
         print(action,"was used to go",direction)
 
-
 def keypress(is_debugging):
     
     ''' 
@@ -71,8 +70,6 @@ def keypress(is_debugging):
     with keyboard.Listener(
         on_release=on_release) as listener:
         listener.join()
-
-
 
 def trackpad_mouse(is_debugging):
     ''' 
@@ -149,10 +146,8 @@ def color_tracker(is_debugging):
     import time
     import multithreaded_webcam as mw
 
-
-    # TODO: You need to define HSV colour range (currently green)
-    colorLower = (29, 86, 6)
-    colorUpper = (64, 255, 255)
+    colorLower = (100, 150, 50)
+    colorUpper = (140, 255, 255)
 
     # set the limit for the number of frames to store and the number that have seen direction change
     buffer = 20
@@ -208,11 +203,26 @@ def color_tracker(is_debugging):
 
         #If at least 10 frames have direction change, proceed
         if num_frames >= 10 and (len(pts) >= 10 and pts[9] is not None):
-            #TODO: calculate direction
-            pass
+            dX = pts[9][0] - pts[0][0]
+            dY = pts[9][1] - pts[0][1]
 
-        # TODO: complete key press
-        
+            THRESHOLD = 20
+
+            if abs(dX) > abs(dY):
+                if dX > THRESHOLD:
+                    direction = 'left'
+                elif dX < -THRESHOLD:
+                    direction = 'right'
+            else:
+                if dY > THRESHOLD:
+                    direction = 'up'
+                elif dY < -THRESHOLD:
+                    direction = 'down'
+
+        if direction != '' and direction != last_dir:
+            pyautogui.press(direction)
+            debugging(is_debugging, 'color tracker', direction)
+            last_dir = direction
         
         #Update counter
         num_frames += 1
