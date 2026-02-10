@@ -238,19 +238,15 @@ def finger_tracking(is_debugging):
 
     import cv2
     import imutils
-    import numpy as np
     import time
     import multithreaded_webcam as mw
     import mediapipe as mp
     from mediapipe.tasks import python
     from mediapipe.tasks.python import vision
 
-    # configuration to set the model and using only one hand
     MODEL_PATH = 'hand_landmarker.task'
     num_hands = 1
 
-    # Standard MediaPipe Hand Connections (The Skeleton)
-    # Each tuple represents a line between two landmark indices
     HAND_CONNECTIONS = [
         (0, 1), (1, 2), (2, 3), (3, 4),       # Thumb
         (0, 5), (5, 6), (6, 7), (7, 8),       # Index
@@ -259,12 +255,9 @@ def finger_tracking(is_debugging):
         (0, 17), (17, 18), (18, 19), (19, 20) # Pinky
     ]
 
-    ##Sleep for 2 seconds to let camera initialize properly
     time.sleep(2)
-    #Start video capture
     vs = mw.WebcamVideoStream().start()
 
-    #Get the trained model for the hands
     base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
     options = vision.HandLandmarkerOptions(
         base_options=base_options,
@@ -276,8 +269,7 @@ def finger_tracking(is_debugging):
     )
     landmarker = vision.HandLandmarker.create_from_options(options)
 
-    # function to count number of fingers up
-    def count_fingers(hand_landmarks, handedness):
+    def count_fingers(hand_landmarks):
         count = 0
 
         # Thumb (horizontal)
@@ -306,60 +298,45 @@ def finger_tracking(is_debugging):
     is_running = True
 
     while is_running:
-        # Get frame, flip it, resize it, and convert to RGB
         img = vs.read()
         img = cv2.flip(img, 1)
         img = imutils.resize(img, width=600)
         rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        # Detect hand landmarks from the input image.
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb_frame)
         frame_timestamp_ms = int(time.time() * 1000)
         result = landmarker.detect_for_video(mp_image, frame_timestamp_ms)
 
-        # Draw Results if available
         if result.hand_landmarks:
             h, w, _ = img.shape
             
-            for i, hand_landmarks in enumerate(result.hand_landmarks):
-                raw_label = result.handedness[i][0].category_name
-                display_label = "Left" if raw_label == "Right" else "Right"
+            for hand_landmarks in result.hand_landmarks:
                 
-                # 1. DRAW SKELETON (Lines)
                 for connection in HAND_CONNECTIONS:
                     start_idx = connection[0]
                     end_idx = connection[1]
                     
-                    # Convert normalized coordinates (0-1) to pixel coordinates
                     start_point = (int(hand_landmarks[start_idx].x * w), int(hand_landmarks[start_idx].y * h))
                     end_point = (int(hand_landmarks[end_idx].x * w), int(hand_landmarks[end_idx].y * h))
                     
-                    # Draw the line (White)
                     cv2.line(img, start_point, end_point, (240, 240, 240), 2)
 
-                # 2. DRAW LANDMARKS (Dots)
                 wrist_coords = (0, 0)
                 for idx, lm in enumerate(hand_landmarks):
                     cx, cy = int(lm.x * w), int(lm.y * h)
                     if idx == 0: wrist_coords = (cx, cy)
                     
-                    # Different color for tips vs joints
                     color = (0, 255, 0) if idx in [4, 8, 12, 16, 20] else (0, 0, 255)
                     cv2.circle(img, (cx, cy), 5, color, cv2.FILLED)
 
-                # 3. COUNT & DISPLAY
-                count = count_fingers(hand_landmarks, display_label)
+                count = count_fingers(hand_landmarks)
                 cv2.putText(img, f"Count: {count}", (wrist_coords[0], wrist_coords[1] - 30), 
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
                 
-            # TODO: complete key press
-
-        #show video
         cv2.imshow('Finger Counter + Skeleton', img)
         cv2.waitKey(1)
 
 
-    # Close all windows and stop the video stream
     cv2.destroyAllWindows()
     vs.stop()
     landmarker.close()
