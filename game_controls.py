@@ -131,12 +131,7 @@ def trackpad_mouse(is_debugging):
 
 def color_tracker(is_debugging):
     ''' 
-    Controls a grid based game through the use of tracking a x colored object. 
-
-    Parameters:
-    is_debugging (bool): indicates if the debugging mode is on
-
-    Returns: None
+    Controls a grid based game through the use of tracking a colored object. 
     '''
 
     import cv2
@@ -144,96 +139,89 @@ def color_tracker(is_debugging):
     import numpy as np
     from collections import deque
     import time
+    import pyautogui
     import multithreaded_webcam as mw
 
-    colorLower = (100, 150, 50)
-    colorUpper = (140, 255, 255)
+    colorLower = (95, 80, 40)
+    colorUpper = (135, 255, 255)
 
-    # set the limit for the number of frames to store and the number that have seen direction change
     buffer = 20
-    pts = deque(maxlen = buffer)
+    pts = deque(maxlen=buffer)
 
-    # store the direction and number of frames with direction change
     num_frames = 0
     (dX, dY) = (0, 0)
     direction = ''
-    global last_dir
+    last_dir = ''
 
-    #Sleep for 2 seconds to let camera initialize properly
     time.sleep(2)
-    #Start video capture
     vs = mw.WebcamVideoStream().start()
 
     is_running = True
 
     while is_running:
-        #get the frame, flip, and resize
         frame = vs.read()
-        frame = cv2.flip(frame,1)
-        frame = imutils.resize(frame, width = 600)
-        blurred_frame = cv2.GaussianBlur(frame, (5,5), 0)
-        hsv_converted_frame = cv2.cvtColor(blurred_frame, cv2.COLOR_BGR2HSV)
+        frame = cv2.flip(frame, 1)
+        frame = imutils.resize(frame, width=600)
 
-        #Create a mask for the frame, get ride of white dots, and make present
-        mask = cv2.inRange(hsv_converted_frame, colorLower, colorUpper)
-        mask = cv2.erode(mask, None, iterations = 2)
-        mask = cv2.dilate(mask, None, iterations = 2)
+        blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+        hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
-        #Find all contours in the masked image
-        cnts,_ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        mask = cv2.inRange(hsv, colorLower, colorUpper)
+        mask = cv2.erode(mask, None, iterations=2)
+        mask = cv2.dilate(mask, None, iterations=2)
 
-        #Define center of the ball to be detected as None
+        cnts, _ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
         center = None
 
-        #If any object is detected, then only proceed
-        if(len(cnts) > 0):
-            #Find the contour with maximum area
-            c = max(cnts, key = cv2.contourArea)
-            #Find the center of the circle, and its radius of the largest detected contour.
-            ((x,y), radius) = cv2.minEnclosingCircle(c)
-            #Calculate the centroid of the ball, as we need to draw a circle around it.
+        if len(cnts) > 0:
+            c = max(cnts, key=cv2.contourArea)
+            ((x, y), radius) = cv2.minEnclosingCircle(c)
             M = cv2.moments(c)
-            center = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
 
-            #Proceed only if a ball of considerable size is detected
-            if radius > 10:
-                cv2.circle(frame, (int(x), int(y)), int(radius), (0,255,255), 2)
-                cv2.circle(frame, center, 5, (0,255,255), -1)
-                pts.appendleft(center)
+            if M['m00'] != 0:
+                center = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
 
-        #If at least 10 frames have direction change, proceed
-        if num_frames >= 10 and (len(pts) >= 10 and pts[9] is not None):
-            dX = pts[9][0] - pts[0][0]
-            dY = pts[9][1] - pts[0][1]
+                if radius > 10:
+                    cv2.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
+                    cv2.circle(frame, center, 5, (0, 255, 255), -1)
+                    pts.appendleft(center)
 
-            THRESHOLD = 20
+        if num_frames >= 10 and len(pts) >= 10 and pts[9] is not None:
+            dX = pts[0][0] - pts[9][0]
+            dY = pts[0][1] - pts[9][1]
+
+            THRESHOLD = 5
+            direction = ''
 
             if abs(dX) > abs(dY):
                 if dX > THRESHOLD:
-                    direction = 'left'
-                elif dX < -THRESHOLD:
                     direction = 'right'
+                elif dX < -THRESHOLD:
+                    direction = 'left'
             else:
                 if dY > THRESHOLD:
-                    direction = 'up'
-                elif dY < -THRESHOLD:
                     direction = 'down'
+                elif dY < -THRESHOLD:
+                    direction = 'up'
 
         if direction != '' and direction != last_dir:
             pyautogui.press(direction)
-            debugging(is_debugging, 'color tracker', direction)
+            if is_debugging:
+                print('Direction:', direction)
             last_dir = direction
-        
-        #Update counter
+
         num_frames += 1
 
-        #Write the detected direction on the frame.
-        cv2.putText(frame, direction, (20,40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 3)
-        #Show the output frame.
-        cv2.imshow('Game Control Window', frame)
-        cv2.waitKey(1)
+        cv2.putText(frame, direction, (20, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
 
-    # Close all windows and close the video stream.
+        cv2.imshow('Game Control Window', frame)
+        cv2.imshow('Mask', mask)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            is_running = False
+
     cv2.destroyAllWindows()
     vs.stop()
 
@@ -377,51 +365,65 @@ def finger_tracking(is_debugging):
     landmarker.close()
 
 def unique_control(is_debugging):
-    ''' 
-    Controls a grid based game using mouse scroll input.
+    """
+    Controls a grid-based game using spacebar taps in a fun, unique way.
 
-    Scroll mapping:
-    - Scroll up    -> move up
-    - Scroll down  -> move down
-    - Scroll left  -> move left
-    - Scroll right -> move right
+    Controls:
+    - First spacebar press: starts moving forward.
+    - Subsequent taps:
+        - One tap  -> turn RIGHT
+        - Two taps quickly -> turn LEFT
 
-    This control uses the mouse scroll wheel instead of mouse movement
-    or keyboard input, making it a unique interaction modality.
-
+    The snake/Pacman keeps moving automatically; player just controls turning rhythmically.
+    
     Parameters:
-    is_debugging (bool): indicates if debugging mode is on
+    is_debugging (bool): prints directions when True
+    """
+    import time
+    from pynput import keyboard
+    import pyautogui
 
-    Returns: None
-    '''
+    directions = ['up', 'right', 'down', 'left']
+    current_idx = 0
+    last_time = 0
+    tap_count = 0
+    started = False
 
-    from pynput import mouse
-    global last_dir
+    def press_direction(idx):
+        pyautogui.press(directions[idx])
+        if is_debugging:
+            print("Direction:", directions[idx])
 
-    def on_scroll(x, y, dx, dy):
-        global last_dir
+    def on_press(key):
+        nonlocal current_idx, last_time, tap_count, started
 
-        if dy > 0 and last_dir != 'up':
-            pyautogui.press('up')
-            last_dir = 'up'
-            debugging(is_debugging, 'scroll', 'up')
+        if key == keyboard.Key.space:
+            now = time.time()
 
-        elif dy < 0 and last_dir != 'down':
-            pyautogui.press('down')
-            last_dir = 'down'
-            debugging(is_debugging, 'scroll', 'down')
+            if not started:
+                started = True
+                press_direction(current_idx)
+                return
 
-        elif dx > 0 and last_dir != 'right':
-            pyautogui.press('right')
-            last_dir = 'right'
-            debugging(is_debugging, 'scroll', 'right')
+            if now - last_time < 0.4:
+                tap_count += 1
+            else:
+                tap_count = 1
 
-        elif dx < 0 and last_dir != 'left':
-            pyautogui.press('left')
-            last_dir = 'left'
-            debugging(is_debugging, 'scroll', 'left')
+            if tap_count == 1:
+                current_idx = (current_idx + 1) % 4
+            elif tap_count == 2:
+                current_idx = (current_idx - 1) % 4
+                tap_count = 0
 
-    with mouse.Listener(on_scroll=on_scroll) as listener:
+            press_direction(current_idx)
+            last_time = now
+
+        elif key == keyboard.Key.esc:
+            print("Exiting unique control.")
+            return False
+
+    with keyboard.Listener(on_press=on_press) as listener:
         listener.join()
 
 def main():
