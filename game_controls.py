@@ -226,34 +226,31 @@ def color_tracker(is_debugging):
     vs.stop()
 
 def finger_tracking(is_debugging):
-    ''' 
-    Controls a grid based game through the use of finger tracking 
-    The finger mapping is as follows: x = up, x = down, x = left, x = right, x = exit
+    """
+    Controls a grid based game through finger tracking.
 
-    Parameters:
-    is_debugging (bool): indicates if the debugging mode is on
-
-    Returns: None
-    '''
+    Finger mapping:
+        5 fingers -> keep moving (no change)
+        4 fingers -> right
+        3 fingers -> left
+        2 fingers -> up
+        1 finger  -> down
+        0 fingers -> exit
+    """
 
     import cv2
     import imutils
     import time
+    import pyautogui
     import multithreaded_webcam as mw
     import mediapipe as mp
     from mediapipe.tasks import python
     from mediapipe.tasks.python import vision
 
+    global last_dir
+
     MODEL_PATH = 'hand_landmarker.task'
     num_hands = 1
-
-    HAND_CONNECTIONS = [
-        (0, 1), (1, 2), (2, 3), (3, 4),       # Thumb
-        (0, 5), (5, 6), (6, 7), (7, 8),       # Index
-        (0, 9), (9, 10), (10, 11), (11, 12),  # Middle
-        (0, 13), (13, 14), (14, 15), (15, 16),# Ring
-        (0, 17), (17, 18), (18, 19), (19, 20) # Pinky
-    ]
 
     time.sleep(2)
     vs = mw.WebcamVideoStream().start()
@@ -267,24 +264,25 @@ def finger_tracking(is_debugging):
         min_hand_presence_confidence=0.5,
         min_tracking_confidence=0.5
     )
+
     landmarker = vision.HandLandmarker.create_from_options(options)
 
     def count_fingers(hand_landmarks):
         count = 0
 
-        # Thumb (horizontal)
+        # Thumb
         if hand_landmarks[4].x > hand_landmarks[3].x:
             count += 1
 
-        # Index finger
+        # Index
         if hand_landmarks[8].y < hand_landmarks[6].y:
             count += 1
 
-        # Middle finger
+        # Middle
         if hand_landmarks[12].y < hand_landmarks[10].y:
             count += 1
 
-        # Ring finger
+        # Ring
         if hand_landmarks[16].y < hand_landmarks[14].y:
             count += 1
 
@@ -294,48 +292,62 @@ def finger_tracking(is_debugging):
 
         return count
 
-    global last_dir
+    last_change_time = 0
+    change_delay = 300  # milliseconds
     is_running = True
 
     while is_running:
-        img = vs.read()
-        img = cv2.flip(img, 1)
-        img = imutils.resize(img, width=600)
-        rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        frame = vs.read()
+        frame = cv2.flip(frame, 1)
+        frame = imutils.resize(frame, width=600)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB,data=rgb_frame)
-        frame_timestamp_ms = int(time.time() * 1000)
-        result = landmarker.detect_for_video(mp_image, frame_timestamp_ms)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+        timestamp = int(time.time() * 1000)
+        result = landmarker.detect_for_video(mp_image, timestamp)
 
         if result.hand_landmarks:
-            h, w, _ = img.shape
-            
             for hand_landmarks in result.hand_landmarks:
-                
-                for connection in HAND_CONNECTIONS:
-                    start_idx = connection[0]
-                    end_idx = connection[1]
-                    
-                    start_point = (int(hand_landmarks[start_idx].x * w), int(hand_landmarks[start_idx].y * h))
-                    end_point = (int(hand_landmarks[end_idx].x * w), int(hand_landmarks[end_idx].y * h))
-                    
-                    cv2.line(img, start_point, end_point, (240, 240, 240), 2)
 
-                wrist_coords = (0, 0)
-                for idx, lm in enumerate(hand_landmarks):
-                    cx, cy = int(lm.x * w), int(lm.y * h)
-                    if idx == 0: wrist_coords = (cx, cy)
-                    
-                    color = (0, 255, 0) if idx in [4, 8, 12, 16, 20] else (0, 0, 255)
-                    cv2.circle(img, (cx, cy), 5, color, cv2.FILLED)
+                finger_count = count_fingers(hand_landmarks)
+                current_time = int(time.time() * 1000)
 
-                count = count_fingers(hand_landmarks)
-                cv2.putText(img, f"Count: {count}", (wrist_coords[0], wrist_coords[1] - 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
-                
-        cv2.imshow('Finger Counter + Skeleton', img)
-        cv2.waitKey(1)
+                if current_time - last_change_time > change_delay:
 
+                    direction = None
+
+                    if finger_count == 4 and last_dir != 'right':
+                        direction = 'right'
+
+                    elif finger_count == 3 and last_dir != 'left':
+                        direction = 'left'
+
+                    elif finger_count == 2 and last_dir != 'up':
+                        direction = 'up'
+
+                    elif finger_count == 1 and last_dir != 'down':
+                        direction = 'down'
+
+                    elif finger_count == 0:
+                        print("Exiting finger control.")
+                        is_running = False
+
+                    if direction:
+                        pyautogui.press(direction)
+                        last_dir = direction
+                        debugging(is_debugging, 'finger tracking', direction)
+
+                    last_change_time = current_time
+
+                cv2.putText(frame, f"Fingers: {finger_count}",
+                            (20, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            1, (0, 255, 255), 2)
+
+        cv2.imshow("Finger Tracking Control", frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            is_running = False
 
     cv2.destroyAllWindows()
     vs.stop()
